@@ -44,23 +44,31 @@ export async function fetchBids() {
 }
 
 /**
- * 영업 활동 보고 (통합 저장)
- * @param {Object} activityData 입력 폼 데이터
+ * Project Rainmaker API Client
+ * - CORS 문제 해결을 위한 text/plain 강제 설정 적용
  */
+
+// 1. 일반 영업보고 저장
 export async function saveActivity(activityData) {
   const API_URL = import.meta.env.VITE_API_URL;
 
   const payload = {
     type: 'SALES_LOG',
-    data: activityData,
+    data: activityData
   };
 
   try {
-    await fetch(API_URL, {
+    const response = await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      redirect: 'follow',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload)
     });
+
+    const result = await response.json();
+    console.log('저장 결과:', result);
     return true;
   } catch (err) {
     console.error('저장 실패:', err);
@@ -68,24 +76,27 @@ export async function saveActivity(activityData) {
   }
 }
 
-/**
- * 정책 과업 보고 (별도 저장)
- * @param {Object} policyData 정책 과업 데이터
- */
+// 2. 정책 과업 저장
 export async function savePolicy(policyData) {
   const API_URL = import.meta.env.VITE_API_URL;
 
   const payload = {
     type: 'POLICY',
-    data: policyData,
+    data: policyData
   };
 
   try {
-    await fetch(API_URL, {
+    const response = await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      redirect: 'follow',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify(payload)
     });
+
+    const result = await response.json();
+    console.log('정책 저장 결과:', result);
     return true;
   } catch (err) {
     console.error('정책 저장 실패:', err);
