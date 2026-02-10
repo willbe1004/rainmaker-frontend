@@ -44,6 +44,38 @@ export async function fetchBids() {
 }
 
 /**
+ * 리포트 데이터 조회 (시트별)
+ * @param {string} sheetName - 시트 이름 (예: 'Weekly_Report', 'Monthly_Quote')
+ * @returns {Promise<Array>} 성공 시 JSON 데이터 배열, 실패 시 빈 배열
+ */
+export async function fetchReports(sheetName) {
+  const baseUrl = import.meta.env.VITE_API_URL;
+  if (!baseUrl) {
+    console.error('[fetchReports] API URL이 설정되지 않았습니다.');
+    return [];
+  }
+
+  const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}sheet=${encodeURIComponent(sheetName || '')}`;
+
+  try {
+    const response = await fetch(url, { method: 'GET' });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error('[fetchReports] HTTP 에러:', { status: response.status, url, body: text?.slice(0, 300) });
+      return [];
+    }
+
+    const data = await response.json();
+    const list = data?.data ?? data ?? [];
+    return Array.isArray(list) ? list : [];
+  } catch (err) {
+    console.error('[fetchReports] 요청 실패:', err);
+    return [];
+  }
+}
+
+/**
  * Project Rainmaker API Client
  * - CORS 문제 해결을 위한 text/plain 강제 설정 적용
  */
