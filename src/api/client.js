@@ -49,28 +49,14 @@ export async function fetchBids() {
  * @returns {Promise<Array>} 성공 시 JSON 데이터 배열, 실패 시 빈 배열
  */
 export async function fetchReports(sheetName) {
-  const baseUrl = import.meta.env.VITE_API_URL;
-  if (!baseUrl) {
-    console.error('[fetchReports] API URL이 설정되지 않았습니다.');
-    return [];
-  }
-
-  const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}sheet=${encodeURIComponent(sheetName || '')}`;
-
+  const API_URL = import.meta.env.VITE_API_URL;
   try {
-    const response = await fetch(url, { method: 'GET' });
-
-    if (!response.ok) {
-      const text = await response.text();
-      console.error('[fetchReports] HTTP 에러:', { status: response.status, url, body: text?.slice(0, 300) });
-      return [];
-    }
-
-    const data = await response.json();
-    const list = data?.data ?? data ?? [];
-    return Array.isArray(list) ? list : [];
-  } catch (err) {
-    console.error('[fetchReports] 요청 실패:', err);
+    // sheet 파라미터로 시트 지정
+    const response = await fetch(`${API_URL}?sheet=${sheetName}`);
+    const result = await response.json();
+    return result.status === 'success' ? result.data : [];
+  } catch (error) {
+    console.error(`${sheetName} 조회 실패:`, error);
     return [];
   }
 }
