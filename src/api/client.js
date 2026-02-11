@@ -1,72 +1,9 @@
 // src/api/client.js
-
-// .env에 있는 주소를 그대로 가져옵니다. (프록시/우회 로직 제거)
-const API_URL = import.meta.env.VITE_API_URL;
+// Rainmaker API Client (Final Stable Version)
 
 /**
- * 수집된 입찰 공고 목록을 가져옵니다.
- * @returns {Promise<Array>} 공고 목록
+ * 1. 일반 영업보고 저장 (POST)
  */
-export async function fetchBids() {
-  // URL이 없는 경우 방어 코드
-  if (!API_URL) {
-    console.error("[fetchBids] API URL이 설정되지 않았습니다 (.env 확인 필요)");
-    return [];
-  }
-
-  try {
-    // method: 'GET'은 생략 가능하지만 명시, 기타 헤더는 제거 (CORS 방지)
-    const response = await fetch(API_URL);
-
-    if (!response.ok) {
-      // 에러 발생 시 로그 출력
-      const text = await response.text();
-      console.error('[fetchBids] HTTP 에러:', {
-        status: response.status,
-        url: API_URL,
-        body: text?.slice(0, 500), // 에러 내용 확인용
-      });
-      return [];
-    }
-
-    const data = await response.json();
-    
-    // 데이터 구조에 따라 유연하게 배열 추출
-    // { status: "success", data: [...] } 또는 그냥 [...] 형태 모두 대응
-    const list = data?.data ?? data ?? [];
-    
-    return Array.isArray(list) ? list : [];
-
-  } catch (err) {
-    console.error('[fetchBids] 요청 실패 (네트워크/CORS):', err);
-    return [];
-  }
-}
-
-/**
- * 리포트 데이터 조회 (시트별)
- * @param {string} sheetName - 시트 이름 (예: 'Weekly_Report', 'Monthly_Quote')
- * @returns {Promise<Array>} 성공 시 JSON 데이터 배열, 실패 시 빈 배열
- */
-export async function fetchReports(sheetName) {
-  const API_URL = import.meta.env.VITE_API_URL;
-  try {
-    // sheet 파라미터로 시트 지정
-    const response = await fetch(`${API_URL}?sheet=${sheetName}`);
-    const result = await response.json();
-    return result.status === 'success' ? result.data : [];
-  } catch (error) {
-    console.error(`${sheetName} 조회 실패:`, error);
-    return [];
-  }
-}
-
-/**
- * Project Rainmaker API Client
- * - CORS 문제 해결을 위한 text/plain 강제 설정 적용
- */
-
-// 1. 일반 영업보고 저장
 export async function saveActivity(activityData) {
   const API_URL = import.meta.env.VITE_API_URL;
 
@@ -78,15 +15,14 @@ export async function saveActivity(activityData) {
   try {
     const response = await fetch(API_URL, {
       method: 'POST',
-      redirect: 'follow',
+      redirect: "follow",
       headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
+        "Content-Type": "text/plain;charset=utf-8", // GAS CORS 회피용
       },
       body: JSON.stringify(payload)
     });
 
     const result = await response.json();
-    console.log('저장 결과:', result);
     return true;
   } catch (err) {
     console.error('저장 실패:', err);
@@ -95,57 +31,100 @@ export async function saveActivity(activityData) {
 }
 
 /**
- * 우수유출 저감대책 보고서 초안 생성 (AI Draft)
- * @param {Object} bidData - 공고 정보 + region(지역: 주소 또는 발주처)
- * @returns {Promise<string>} 보고서 본문 텍스트
+ * 2. 리포트 데이터 조회 (GET)
+ * - 중요: GET 요청에는 headers를 붙이지 않아야 CORS 에러가 안 납니다.
  */
-export async function generateProposal(bidData) {
+export async function fetchReports(sheetName) {
   const API_URL = import.meta.env.VITE_API_URL;
-  if (!API_URL) {
-    throw new Error('API URL이 설정되지 않았습니다.');
-  }
-  const payload = { type: 'GENERATE_PROPOSAL', data: bidData };
+
   try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      redirect: 'follow',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(payload),
+    // 쿼리 스트링으로 시트명 전달 (?sheet=Name)
+    const url = `${API_URL}?sheet=${sheetName}`;
+
+    console.log(`[API 요청] ${url}`); // 디버깅용 로그
+
+    const response = await fetch(url, {
+      method: 'GET',
+      redirect: "follow"
+      // headers: {} <-- 삭제 필수! (GET 요청 시 헤더 금지)
     });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `HTTP ${response.status}`);
-    }
+
     const result = await response.json();
-    const text = result?.text ?? result?.data ?? (typeof result === 'string' ? result : '');
-    return String(text);
-  } catch (err) {
-    console.error('보고서 생성 실패:', err);
-    throw err;
+
+    if (result.status === 'success') {
+      console.log(`[${sheetName}] 데이터 로드 완료: ${result.data.length}건`);
+      return result.data;
+    } else {
+      console.warn(`[${sheetName}] 서버 응답:`, result);
+      return [];
+    }
+  } catch (error) {
+    console.error(`[${sheetName}] 통신 에러:`, error);
+    return [];
   }
 }
 
-// 2. 정책 과업 저장
-export async function savePolicy(policyData) {
+/**
+ * 3. AI 제안서/보고서 생성 (POST)
+ */
+export async function generateProposal(bidData) {
   const API_URL = import.meta.env.VITE_API_URL;
 
   const payload = {
-    type: 'POLICY',
-    data: policyData
+    type: 'GENERATE_PROPOSAL',
+    data: bidData
   };
 
   try {
     const response = await fetch(API_URL, {
       method: 'POST',
-      redirect: 'follow',
-      headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
-      },
+      redirect: "follow",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(payload)
     });
-
     const result = await response.json();
-    console.log('정책 저장 결과:', result);
+    return result.status === 'success' ? result.data : "생성 실패";
+  } catch (error) {
+    console.error(error);
+    return "에러 발생: " + error.message;
+  }
+}
+
+/**
+ * 4. 공고 목록 조회 (GET) — 헤더 없이 호출 (CORS 방지)
+ */
+export async function fetchBids() {
+  const API_URL = import.meta.env.VITE_API_URL;
+  if (!API_URL) {
+    console.error("[fetchBids] API URL이 설정되지 않았습니다 (.env 확인 필요)");
+    return [];
+  }
+  try {
+    const response = await fetch(API_URL, { method: 'GET', redirect: 'follow' });
+    if (!response.ok) return [];
+    const data = await response.json();
+    const list = data?.data ?? data ?? [];
+    return Array.isArray(list) ? list : [];
+  } catch (err) {
+    console.error('[fetchBids] 요청 실패:', err);
+    return [];
+  }
+}
+
+/**
+ * 5. 정책 과업 저장 (POST)
+ */
+export async function savePolicy(policyData) {
+  const API_URL = import.meta.env.VITE_API_URL;
+  const payload = { type: 'POLICY', data: policyData };
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      redirect: "follow",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+    await response.json();
     return true;
   } catch (err) {
     console.error('정책 저장 실패:', err);
