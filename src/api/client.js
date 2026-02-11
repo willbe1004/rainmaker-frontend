@@ -139,3 +139,29 @@ export async function savePolicy(policyData) {
     return false;
   }
 }
+
+/**
+ * 6. 리포트 상태/피드백 업데이트 (관리자용)
+ */
+export async function updateStatusAPI(reportData) {
+  const API_URL = import.meta.env.VITE_API_URL;
+  try {
+    const payload = {
+      type: 'UPDATE_STATUS',
+      data: reportData
+    };
+
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      redirect: "follow",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+    return result.message;
+  } catch (error) {
+    console.error("업데이트 실패:", error);
+    return "통신 오류";
+  }
+}

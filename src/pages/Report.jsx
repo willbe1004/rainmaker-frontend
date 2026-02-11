@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { fetchReports } from '../api/client';
+import { fetchReports, updateStatusAPI } from '../api/client';
+import { useAuth } from '../context/AuthContext';
 
 // ——— 유틸리티 ———
 /** 날짜 포맷: YYYY-MM-DD */
@@ -65,6 +66,7 @@ const TD = 'border border-slate-200 px-3 py-2 text-slate-800';
 const TD_RIGHT = 'border border-slate-200 px-3 py-2 text-right text-slate-800';
 
 export default function Report() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('weekly');
   const [weeklyData, setWeeklyData] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
@@ -99,6 +101,20 @@ export default function Report() {
       if (v !== undefined && v !== null && v !== '') return v;
     }
     return null;
+  };
+
+  const handleUpdateStatus = async (item, newStatus, feedbackText) => {
+    if (!confirm(`${newStatus} 처리 하시겠습니까?`)) return;
+    const result = await updateStatusAPI({
+      date: getCell(item, 'date', '일자', 'Date'),
+      content: getCell(item, 'content', '내용', '주요업무', '주요 업무'),
+      manager: getCell(item, 'manager', '주관', '담당자'),
+      status: newStatus,
+      feedback: feedbackText,
+    });
+    alert(result);
+    const updatedData = await fetchReports('Weekly_Report');
+    setWeeklyData(Array.isArray(updatedData) ? updatedData : []);
   };
 
   return (
@@ -136,42 +152,75 @@ export default function Report() {
         ) : (
           <div className={TABLE_WRAP}>
             <div className="overflow-x-auto">
-              {/* Tab 1: 주간업무보고 (권준오.csv) — 주요 업무 칸 가장 넓게 */}
+              {/* Tab 1: 주간업무보고 — 카드 + 상태 + 관리자 승인/반려 */}
               {activeTab === 'weekly' && (
-                <table className={TABLE}>
-                  <thead>
-                    <tr>
-                      <th className={TH}>일자</th>
-                      <th className={TH}>요일</th>
-                      <th className={`${TH} min-w-[220px]`}>주요 업무</th>
-                      <th className={TH}>주관</th>
-                      <th className={TH}>협업</th>
-                      <th className={TH}>외근</th>
-                      <th className={TH}>긴급</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {weeklyData.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="border border-slate-200 px-4 py-8 text-center text-slate-500">
-                          데이터 없음
-                        </td>
-                      </tr>
-                    ) : (
-                      weeklyData.map((row, i) => (
-                        <tr key={i} className="hover:bg-slate-50/50">
-                          <td className={TD}>{formatDate(getCell(row, 'date', '일자', 'Date')) || '—'}</td>
-                          <td className={TD}>{getCell(row, 'day', '요일') ?? '—'}</td>
-                          <td className={`${TD} min-w-[220px]`}>{getCell(row, 'content', '내용', '주요업무', '주요 업무') ?? '—'}</td>
-                          <td className={TD}>{getCell(row, 'manager', '주관', '담당자') ?? '—'}</td>
-                          <td className={TD}>{getCell(row, 'collaboration', '협업') ?? '—'}</td>
-                          <td className={TD}>{getCell(row, 'outside', '외근') ?? '—'}</td>
-                          <td className={TD}>{getCell(row, 'urgent', '긴급') ?? '—'}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                <div className="p-6">
+                  {weeklyData.length === 0 ? (
+                    <div className="py-12 text-center text-slate-500">데이터 없음</div>
+                  ) : (
+                    <div className="space-y-4">
+                      {weeklyData.map((item, index) => {
+                        const status = getCell(item, 'status', '상태') || '대기중';
+                        const feedback = getCell(item, 'feedback', '피드백');
+                        return (
+                          <div key={index} className="bg-white p-6 rounded-lg shadow border border-gray-200">
+                            <div className="flex justify-between items-start mb-4">
+                              <div>
+                                <span className="text-sm text-gray-500">
+                                  {formatDate(getCell(item, 'date', '일자', 'Date')) || '—'} ({getCell(item, 'day', '요일') ?? '—'})
+                                </span>
+                                <h3 className="text-lg font-bold text-gray-800 mt-1">
+                                  {getCell(item, 'content', '내용', '주요업무', '주요 업무') ?? '—'}
+                                </h3>
+                                <p className="text-sm text-gray-600">
+                                  담당: {getCell(item, 'manager', '주관', '담당자') ?? '—'} | 협조: {getCell(item, 'collaboration', '협업') ?? '—'}
+                                  {(getCell(item, 'outside', '외근') || getCell(item, 'urgent', '긴급')) && (
+                                    <> | 외근: {getCell(item, 'outside', '외근') ?? '—'} | 긴급: {getCell(item, 'urgent', '긴급') ?? '—'}</>
+                                  )}
+                                </p>
+                              </div>
+                              <div className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                status === '승인' ? 'bg-green-100 text-green-800' :
+                                status === '반려' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'
+                              }`}>
+                                {status}
+                              </div>
+                            </div>
+                            {feedback && (
+                              <div className="mb-4 bg-blue-50 p-3 rounded text-sm text-blue-800">
+                                💬 <strong>피드백:</strong> {feedback}
+                              </div>
+                            )}
+                            {user?.role === 'manager' && (
+                              <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2 items-center bg-gray-50 p-3 rounded flex-wrap">
+                                <span className="text-xs font-bold text-gray-500 mr-2">관리자 메뉴:</span>
+                                <input
+                                  type="text"
+                                  placeholder="피드백 입력..."
+                                  id={`feedback-${index}`}
+                                  className="border border-gray-300 rounded px-2 py-1 text-sm flex-1 min-w-[120px]"
+                                  defaultValue={feedback || ''}
+                                />
+                                <button
+                                  onClick={() => handleUpdateStatus(item, '승인', document.getElementById(`feedback-${index}`)?.value || '')}
+                                  className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                                >
+                                  승인
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateStatus(item, '반려', document.getElementById(`feedback-${index}`)?.value || '')}
+                                  className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
+                                >
+                                  반려
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Tab 2: 월별 견적 현황 (26년 월별견적.csv) — 월, 용량(톤), YYYY-MM */}
