@@ -141,7 +141,48 @@ export async function savePolicy(policyData) {
 }
 
 /**
- * 6. 리포트 상태/피드백 업데이트 (관리자용)
+ * 6. 사용자 권한 조회 (AuthContext용)
+ */
+export async function getUserRoleAPI(email) {
+  const API_URL = import.meta.env.VITE_API_URL;
+  if (!email) return null;
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ type: 'GET_USER_ROLE', data: { email } })
+    });
+    const result = await response.json();
+    return result.status === 'success' ? result.data : null;
+  } catch (e) {
+    console.error("권한 조회 실패:", e);
+    return null;
+  }
+}
+
+/**
+ * 7. 담당자 승인 요청 (ASSIGN_BID)
+ */
+export async function assignBidAPI(payload) {
+  const API_URL = import.meta.env.VITE_API_URL;
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ type: 'ASSIGN_BID', data: payload })
+    });
+    const result = await response.json();
+    return result.status === 'success';
+  } catch (e) {
+    console.error("담당자 신청 실패:", e);
+    return false;
+  }
+}
+
+/**
+ * 8. 리포트 상태/피드백 업데이트 (관리자용)
  */
 export async function updateStatusAPI(reportData) {
   const API_URL = import.meta.env.VITE_API_URL;

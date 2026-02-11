@@ -1,7 +1,8 @@
-// src/context/AuthContext.jsx
+// src/context/AuthContext.jsx (로그인 버그 수정판)
 import { createContext, useContext, useEffect, useState } from "react";
 import { auth, loginWithGoogle, logout } from "../firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import { getUserRoleAPI } from "../api/client";
 
 const AuthContext = createContext();
 
@@ -9,47 +10,41 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // GAS 서버에 직급 조회 요청
-  const fetchUserRole = async (email) => {
-    try {
-      const API_URL = import.meta.env.VITE_API_URL;
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ type: 'GET_USER_ROLE', data: { email } })
-      });
-      const result = await response.json();
-      return result.status === 'success' ? result.data : null;
-    } catch (e) {
-      console.error("권한 조회 실패:", e);
-      return null;
-    }
-  };
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        // 1. 구글 로그인 성공 -> 2. GAS에서 직급 조회
-        const roleInfo = await fetchUserRole(firebaseUser.email);
-        
-        if (roleInfo) {
-          setUser({ ...firebaseUser, ...roleInfo }); // 정보 합치기
+      try {
+        if (firebaseUser) {
+          const roleInfo = await getUserRoleAPI(firebaseUser.email);
+
+          if (roleInfo) {
+            setUser({ ...firebaseUser, ...roleInfo });
+          } else {
+            alert("시스템 사용 권한이 없습니다. 관리자에게 문의하세요.");
+            await logout();
+            setUser(null);
+          }
         } else {
-          alert("등록된 사용자가 아닙니다. 관리자(Users시트)에게 문의하세요.");
-          await logout();
           setUser(null);
         }
-      } else {
+      } catch (error) {
+        console.error("인증 에러:", error);
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
+  const value = {
+    user,
+    login: loginWithGoogle,
+    logout,
+    loading
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login: loginWithGoogle, logout, loading }}>
+    <AuthContext.Provider value={value}>
       {!loading && children}
     </AuthContext.Provider>
   );
