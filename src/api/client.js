@@ -94,6 +94,37 @@ export async function saveActivity(activityData) {
   }
 }
 
+/**
+ * 우수유출 저감대책 보고서 초안 생성 (AI Draft)
+ * @param {Object} bidData - 공고 정보 + region(지역: 주소 또는 발주처)
+ * @returns {Promise<string>} 보고서 본문 텍스트
+ */
+export async function generateProposal(bidData) {
+  const API_URL = import.meta.env.VITE_API_URL;
+  if (!API_URL) {
+    throw new Error('API URL이 설정되지 않았습니다.');
+  }
+  const payload = { type: 'GENERATE_PROPOSAL', data: bidData };
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `HTTP ${response.status}`);
+    }
+    const result = await response.json();
+    const text = result?.text ?? result?.data ?? (typeof result === 'string' ? result : '');
+    return String(text);
+  } catch (err) {
+    console.error('보고서 생성 실패:', err);
+    throw err;
+  }
+}
+
 // 2. 정책 과업 저장
 export async function savePolicy(policyData) {
   const API_URL = import.meta.env.VITE_API_URL;

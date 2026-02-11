@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ExternalLink, Building2, Calendar, MessageSquare, Save } from 'lucide-react';
-import { saveActivity, savePolicy } from '../api/client';
+import { saveActivity, savePolicy, generateProposal } from '../api/client';
 
 const ACTIVITY_CATEGORIES = ['금주실적', '차주계획', '견적제출', '계약', '실주'];
 
@@ -58,6 +58,8 @@ export default function BidDetail() {
   const [policySaving, setPolicySaving] = useState(false);
   const [activitySaved, setActivitySaved] = useState(false);
   const [policySaved, setPolicySaved] = useState(false);
+  const [proposal, setProposal] = useState(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const handleActivityChange = (field, value) => setActivity((prev) => ({ ...prev, [field]: value }));
   const handlePolicyChange = (field, value) => setPolicy((prev) => ({ ...prev, [field]: value }));
@@ -77,6 +79,27 @@ export default function BidDetail() {
     const ok = await savePolicy(policy);
     setPolicySaving(false);
     setPolicySaved(ok);
+  };
+
+  const handleGenerateProposal = async () => {
+    setIsGenerating(true);
+    try {
+      const text = await generateProposal({
+        ...bid,
+        region: bid.addr || bid.dman || bid.procMethod,
+      });
+      setProposal(text);
+    } catch (error) {
+      alert('보고서 생성 실패: ' + (error?.message || error));
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleCopy = () => {
+    if (!proposal) return;
+    navigator.clipboard.writeText(proposal);
+    alert('📋 클립보드에 복사되었습니다. 한글(HWP) 파일에 붙여넣으세요!');
   };
 
   const isQuote = activity.category === '견적제출';
@@ -266,6 +289,42 @@ export default function BidDetail() {
                       {activitySaving ? '저장 중...' : '저장'}
                     </button>
                     {activitySaved && <span className="text-sm text-emerald-600">저장되었습니다.</span>}
+                  </div>
+
+                  {/* 우수유출 저감대책 보고서 (AI Draft) — A4 용지 느낌 + 복사 */}
+                  <div className="mt-8 border-t border-slate-200 pt-6">
+                    <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
+                      <h2 className="text-xl font-bold text-slate-800 flex items-center">
+                        📄 우수유출 저감대책 보고서 (AI Draft)
+                      </h2>
+                      <button
+                        type="button"
+                        onClick={handleGenerateProposal}
+                        disabled={isGenerating}
+                        className="bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg shadow flex items-center gap-2 text-sm font-medium"
+                      >
+                        {isGenerating ? '법령 분석 중...' : '✨ 보고서 초안 생성'}
+                      </button>
+                    </div>
+                    {proposal && (
+                      <div className="relative bg-slate-100 p-8 rounded-lg border border-slate-300">
+                        <button
+                          type="button"
+                          onClick={handleCopy}
+                          className="absolute top-4 right-4 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-3 py-1.5 rounded shadow-sm text-sm font-medium z-10"
+                        >
+                          📋 전체 복사
+                        </button>
+                        <div className="bg-white shadow-xl max-w-4xl mx-auto p-12 min-h-[800px] rounded">
+                          <textarea
+                            value={proposal}
+                            onChange={(e) => setProposal(e.target.value)}
+                            className="w-full h-full min-h-[800px] resize-none focus:outline-none font-serif text-slate-800 leading-relaxed whitespace-pre-wrap border-0 p-0 text-sm"
+                            spellCheck="false"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
