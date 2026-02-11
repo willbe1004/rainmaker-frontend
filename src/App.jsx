@@ -1,50 +1,53 @@
-import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
+import Bids from './pages/Bids';
 import BidDetail from './pages/BidDetail';
 import Report from './pages/Report';
+import Login from './pages/Login';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
-function NavLink({ to, children }) {
-  const location = useLocation();
-  const isActive = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
-  return (
-    <Link
-      to={to}
-      className={`px-3 py-2 text-sm font-medium rounded-md ${isActive ? 'bg-sky-100 text-sky-800' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'}`}
-    >
-      {children}
-    </Link>
-  );
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="h-screen flex items-center justify-center">로딩중...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
 }
 
-function AppHeader() {
+function AppLayout({ children }) {
+  const { user, logout } = useAuth();
   return (
-    <header className="sticky top-0 z-10 border-b border-slate-200 bg-white shadow-sm">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-        <Link to="/" className="text-lg font-semibold text-slate-800">
-          Rainmaker
-        </Link>
-        <nav className="flex items-center gap-1">
-          <NavLink to="/">대시보드</NavLink>
-          <NavLink to="/report">리포트</NavLink>
-        </nav>
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <header className="bg-white h-16 border-b border-gray-200 flex items-center justify-between px-8">
+          <h2 className="text-lg font-bold text-gray-700">Dashboard</h2>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-sm font-bold text-gray-800">{user?.name ?? user?.email} {user?.role === 'manager' && '👑'}</p>
+              <p className="text-xs text-gray-500">{user?.team ?? '-'}팀</p>
+            </div>
+            <button onClick={logout} className="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded">로그아웃</button>
+          </div>
+        </header>
+        <main className="flex-1 overflow-auto p-8">{children}</main>
       </div>
-    </header>
+    </div>
   );
 }
 
-function App() {
+export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-slate-50">
-        <AppHeader />
+      <AuthProvider>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/bids/:id" element={<BidDetail />} />
-          <Route path="/report" element={<Report />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>} />
+          <Route path="/bids" element={<ProtectedRoute><AppLayout><Bids /></AppLayout></ProtectedRoute>} />
+          <Route path="/bids/:id" element={<ProtectedRoute><AppLayout><BidDetail /></AppLayout></ProtectedRoute>} />
+          <Route path="/report" element={<ProtectedRoute><AppLayout><Report /></AppLayout></ProtectedRoute>} />
         </Routes>
-      </div>
+      </AuthProvider>
     </BrowserRouter>
   );
 }
-
-export default App;
